@@ -156,6 +156,7 @@ int main(int argc, char **argv)
 
 	printf("[%2d] Again3: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 	while (partitionsRemaining > 0) {
+		printf("[%2d] Again33: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 		if (partitionsRemaining != commSize) { //This isn't the first go	
 			printf("[%2d] PartitionsRemaining: %d\n", myRank, partitionsRemaining);
 			printf("[%2d] commSize: %d\n", myRank, commSize);
