@@ -19,7 +19,7 @@ double matrix_mult( double **A, double **B, int size, int cRow, int cCol ) {
 
 int main(int argc, char **argv)
 {
-	unsigned int matrix_size=128;
+	unsigned int matrix_size=8192;
 	unsigned long rng_init_seeds[6]={0x0, 0x123, 0x234, 0x345, 0x456, 0x789};
 	unsigned long rng_init_length=6;
 
