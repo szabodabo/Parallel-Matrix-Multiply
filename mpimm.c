@@ -62,6 +62,10 @@ int main(int argc, char **argv)
 	//TODO: Rewrite this to use tabs, not spaces
 	rng_init_seeds[0] = myRank;
   init_by_array(rng_init_seeds, rng_init_length);	
+
+	printf("[%d] Matrix size: %d\n", myRank, matrix_size);
+	printf("[%d] CommSize: %d\n", myRank, commSize);
+
 	
 	partitionSize = matrix_size / commSize;
 	startIdx = partitionSize * myRank;
@@ -243,7 +247,7 @@ int main(int argc, char **argv)
 					B_COLS[i][j] = nextBuffer.rows[i][j];
 				}
 			}
-		}
+		} //End if not first go
 /*		if (myRank == 0) {
 		printf("[%d] Matrix B (%d - %d):\n", myRank, col_offset, col_offset+partitionSize-1);
 		for (i = 0; i < matrix_size; i++) {
