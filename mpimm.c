@@ -93,6 +93,9 @@ int main(int argc, char **argv)
 	MPI_Type_commit(&MPI_BRow);
 */
 
+	printf("Matrix Size: %d\n", matrix_size);
+	printf("Partition Size: %d\n", partitionSize);
+
 	printf("[%d] Init A\n", myRank);
 	A_ROWS = (double **) calloc( partitionSize, sizeof(double *) );
 	for (i = 0; i < partitionSize; i++) {
