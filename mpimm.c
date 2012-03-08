@@ -9,20 +9,9 @@ double CLOCK_RATE = 700000000.0; // change to 700000000.0 for Blue Gene/L
 int MY_RANK;
 
 double matrix_mult( double **A, double **B, int size, int cRow, int cCol ) {
-	printf("[%2d] Entering MM\n", MY_RANK);
-	printf("[%2d] A: %p\n", MY_RANK, A);
-	printf("[%2d] B: %p\n", MY_RANK, B);
-		//------_SEGFAULT_---------------
-	printf("[%2d] B[0][0] = %5.5lf\n", MY_RANK, B[0][0]);
 	int idx;
 	double sum = 0;
 	for (idx = 0; idx < size; idx++) {
-		printf("[%2d][idx=%2d]: sum += A[%2d][%2d] * B[%2d][%2d]\n", MY_RANK, idx, cRow, idx, idx, cCol);
-		printf("[%2d]  A[%2d][%2d] = %5.5lf\n", MY_RANK, cRow, idx, A[cRow][idx]);
-
-		printf("[%2d]  B[%2d][%2d] = %5.5lf\n", MY_RANK, idx, cCol, B[idx][cCol]);
-		printf("[%2d]  Result = %5.5lf\n", MY_RANK, A[cRow][idx] * B[idx][cCol]);
-
 		sum += A[cRow][idx] * B[idx][cCol];
 	}
 	return sum;
@@ -63,10 +52,6 @@ int main(int argc, char **argv)
 	rng_init_seeds[0] = myRank;
   init_by_array(rng_init_seeds, rng_init_length);	
 
-	printf("[%d] Matrix size: %d\n", myRank, matrix_size);
-	printf("[%d] CommSize: %d\n", myRank, commSize);
-
-	
 	partitionSize = matrix_size / commSize;
 	startIdx = partitionSize * myRank;
 	col_offset = partitionSize * myRank;
@@ -97,22 +82,15 @@ int main(int argc, char **argv)
 	MPI_Type_commit(&MPI_BRow);
 */
 
-	printf("Matrix Size: %d\n", matrix_size);
-	printf("Partition Size: %d\n", partitionSize);
-
-	printf("[%d] Init A\n", myRank);
 	A_ROWS = (double **) calloc( partitionSize, sizeof(double *) );
 	for (i = 0; i < partitionSize; i++) {
 		A_ROWS[i] = (double *) calloc( matrix_size, sizeof(double) );
 	}
 
-	printf("[%d] Init B\n", myRank);
 	B_COLS = (double **) calloc( matrix_size, sizeof(double *) );
 	for (i = 0; i < matrix_size; i++) {
 		B_COLS[i] = (double *) calloc( partitionSize, sizeof(double) );
-		printf("B[%2d][0] = %5.5lf\n", i, B_COLS[i][0]);
 	}
-	printf("[%2d] Again: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 
 	C_ROWS = (double **) calloc( partitionSize, sizeof(double *) );
 	for (i = 0; i < partitionSize; i++) {
@@ -126,11 +104,8 @@ int main(int argc, char **argv)
   	for( j = 0; j < matrix_size; j++ ) {
     	A_ROWS[i][j] = genrand_res53(); // (double)i*j;
 	    B_COLS[j][i] = genrand_res53(); //A[i][j] * A[i][j];
-			printf("[%2d] Binit: B[%2d][%2d] = %5.5lf\n", myRank, j, i, B_COLS[j][i]);
 	  }
 	}
-
-	printf("[%2d] Again2: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 
 	//I will use my N/P full rows to compute a N/P * N/P segment of C
 	//By passing around columns of B, I can compute a row of C in
@@ -154,16 +129,8 @@ int main(int argc, char **argv)
 	}
 */
 
-	printf("[%2d] Again3: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
-	printf("[%2d] PR: %d\n", myRank, partitionsRemaining);
 	while (partitionsRemaining > 0) {
-		printf("Banana\n");
-		printf("[%2d] Again33: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 		if (partitionsRemaining != commSize) { //This isn't the first go	
-			printf("[%2d] PartitionsRemaining: %d\n", myRank, partitionsRemaining);
-			printf("[%2d] commSize: %d\n", myRank, commSize);
-
-			printf("[%2d] Again4: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 			//Get the next B offset and partition
 			startRecv = rdtsc();
 			int sourceRank = myRank -1;
@@ -172,9 +139,6 @@ int main(int argc, char **argv)
 			for (i = 0; i < matrix_size; i++) {
 				MPI_Irecv(&nextBuffer.rows[i][0], partitionSize, MPI_DOUBLE, sourceRank, i, MPI_COMM_WORLD, &nextBuffer.rowReq[i]);
 			}
-
-			printf("[%2d] Again7: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
-
 
 			//Post a send to get the current B partition out of here
 			startSend = rdtsc();
@@ -259,8 +223,6 @@ int main(int argc, char **argv)
 			}
 		} //End if not first go
 
-
-		printf("[%2d] Again10: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 /*		if (myRank == 0) {
 		printf("[%d] Matrix B (%d - %d):\n", myRank, col_offset, col_offset+partitionSize-1);
 		for (i = 0; i < matrix_size; i++) {
@@ -271,19 +233,13 @@ int main(int argc, char **argv)
 		}
 		}*/
 
-	
-		printf("[%2d] B[0][0] = %5.5lf\n", MY_RANK, B_COLS[0][0]);
 		//Now compute a block of C for the current B partition
 		startComp = rdtsc();
 		for (i = 0; i < partitionSize; i++) {
-			printf("[%d] Computing row %d of Matrix C...\n", myRank, startIdx+i);
 			for (j = 0; j < partitionSize; j++) {
-				printf("[%d] Computing C[%d][%d]...\n", myRank, startIdx+i, j+col_offset);
-				printf("[%2d] Calling MM with B_COLS pointing to %p\n", myRank, B_COLS);
 				C_ROWS[i][j+col_offset] = matrix_mult( A_ROWS, B_COLS, matrix_size, i, j );
 				
 			}
-			printf("[%d] Done computing row %d of Matrix C.\n", myRank, startIdx+i);
 		}
 		finishComp = rdtsc();
 		my_compute_time += (finishComp - startComp) / CLOCK_RATE;
