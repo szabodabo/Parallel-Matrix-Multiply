@@ -5,7 +5,7 @@
 #include <mtrand.h>
 #include <mpi.h>
 
-double CLOCK_RATE = 2666700000.0; // change to 700000000.0 for Blue Gene/L
+double CLOCK_RATE = 700000000.0; // change to 700000000.0 for Blue Gene/L
 
 double matrix_mult( double **A, double **B, int size, int cRow, int cCol ) {
 	int idx;
@@ -18,7 +18,7 @@ double matrix_mult( double **A, double **B, int size, int cRow, int cCol ) {
 
 int main(int argc, char **argv)
 {
-	unsigned int matrix_size=1344;
+	unsigned int matrix_size=32;
 	unsigned long rng_init_seeds[6]={0x0, 0x123, 0x234, 0x345, 0x456, 0x789};
 	unsigned long rng_init_length=6;
 
@@ -95,8 +95,8 @@ int main(int argc, char **argv)
 		C_ROWS[i] = (double *) calloc( matrix_size, sizeof(double *) );
 	}
 
-//	printf("I am MPI Rank %d and I have rows %d - %d\n", 
-		//	myRank, startIdx, startIdx+partitionSize-1);
+	printf("I am MPI Rank %d and I have rows %d - %d\n", 
+			myRank, startIdx, startIdx+partitionSize-1);
 
 	for( i = 0; i < partitionSize; i++ ) {
   	for( j = 0; j < matrix_size; j++ ) {
@@ -236,10 +236,13 @@ int main(int argc, char **argv)
 		//Now compute a block of C for the current B partition
 		startComp = rdtsc();
 		for (i = 0; i < partitionSize; i++) {
+			printf("[%d] Computing row %d of Matrix C...\n", myRank, startIdx+i);
 			for (j = 0; j < partitionSize; j++) {
-//				printf("[%d] Computing C[%d][%d]...\n", myRank, startIdx+i, j+col_offset);
+				printf("[%d] Computing C[%d][%d]...\n", myRank, startIdx+i, j+col_offset);
 				C_ROWS[i][j+col_offset] = matrix_mult( A_ROWS, B_COLS, matrix_size, i, j );
+				
 			}
+			printf("[%d] Done computing row %d of Matrix C.\n", myRank, startIdx+i);
 		}
 		finishComp = rdtsc();
 		my_compute_time += (finishComp - startComp) / CLOCK_RATE;
