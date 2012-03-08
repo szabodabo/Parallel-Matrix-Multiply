@@ -12,6 +12,7 @@ double matrix_mult( double **A, double **B, int size, int cRow, int cCol ) {
 	printf("[%2d] Entering MM\n", MY_RANK);
 	printf("[%2d] A: %p\n", MY_RANK, A);
 	printf("[%2d] B: %p\n", MY_RANK, B);
+		//------_SEGFAULT_---------------
 	printf("[%2d] B[0][0] = %5.5lf\n", MY_RANK, B[0][0]);
 	int idx;
 	double sum = 0;
@@ -19,7 +20,6 @@ double matrix_mult( double **A, double **B, int size, int cRow, int cCol ) {
 		printf("[%2d][idx=%2d]: sum += A[%2d][%2d] * B[%2d][%2d]\n", MY_RANK, idx, cRow, idx, idx, cCol);
 		printf("[%2d]  A[%2d][%2d] = %5.5lf\n", MY_RANK, cRow, idx, A[cRow][idx]);
 
-		//------_SEGFAULT_---------------
 		printf("[%2d]  B[%2d][%2d] = %5.5lf\n", MY_RANK, idx, cCol, B[idx][cCol]);
 		printf("[%2d]  Result = %5.5lf\n", MY_RANK, A[cRow][idx] * B[idx][cCol]);
 
@@ -260,6 +260,7 @@ int main(int argc, char **argv)
 		}*/
 
 	
+		printf("[%2d] B[0][0] = %5.5lf\n", MY_RANK, B_COLS[0][0]);
 		//Now compute a block of C for the current B partition
 		startComp = rdtsc();
 		for (i = 0; i < partitionSize; i++) {
