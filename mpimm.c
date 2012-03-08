@@ -126,6 +126,7 @@ int main(int argc, char **argv)
   	for( j = 0; j < matrix_size; j++ ) {
     	A_ROWS[i][j] = genrand_res53(); // (double)i*j;
 	    B_COLS[j][i] = genrand_res53(); //A[i][j] * A[i][j];
+			printf("[%2d] Binit: B[%2d][%2d] = %5.5lf\n", myRank, j, i, B_COLS[j][i]);
 	  }
 	}
 
