@@ -103,20 +103,20 @@ int main(int argc, char **argv)
 	printf("[%d] Init A\n", myRank);
 	A_ROWS = (double **) calloc( partitionSize, sizeof(double *) );
 	for (i = 0; i < partitionSize; i++) {
-		A_ROWS[i] = (double *) calloc( matrix_size, sizeof(double *) );
+		A_ROWS[i] = (double *) calloc( matrix_size, sizeof(double) );
 	}
 
 	printf("[%d] Init B\n", myRank);
 	B_COLS = (double **) calloc( matrix_size, sizeof(double *) );
 	for (i = 0; i < matrix_size; i++) {
-		B_COLS[i] = (double *) calloc( partitionSize, sizeof(double *) );
+		B_COLS[i] = (double *) calloc( partitionSize, sizeof(double) );
 		printf("B[%2d][0] = %5.5lf\n", i, B_COLS[i][0]);
 	}
 	printf("[%2d] Again: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 
 	C_ROWS = (double **) calloc( partitionSize, sizeof(double *) );
 	for (i = 0; i < partitionSize; i++) {
-		C_ROWS[i] = (double *) calloc( matrix_size, sizeof(double *) );
+		C_ROWS[i] = (double *) calloc( matrix_size, sizeof(double) );
 	}
 
 	printf("I am MPI Rank %d and I have rows %d - %d\n", 
