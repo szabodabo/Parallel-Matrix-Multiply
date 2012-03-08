@@ -154,9 +154,13 @@ int main(int argc, char **argv)
 	}
 */
 
+	printf("[%2d] Again3: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 	while (partitionsRemaining > 0) {
 		if (partitionsRemaining != commSize) { //This isn't the first go	
+			printf("[%2d] PartitionsRemaining: %d\n", myRank, partitionsRemaining);
+			printf("[%2d] commSize: %d\n", myRank, commSize);
 
+			printf("[%2d] Again4: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 			//Get the next B offset and partition
 			startRecv = rdtsc();
 			int sourceRank = myRank -1;
@@ -165,6 +169,8 @@ int main(int argc, char **argv)
 			for (i = 0; i < matrix_size; i++) {
 				MPI_Irecv(&nextBuffer.rows[i][0], partitionSize, MPI_DOUBLE, sourceRank, i, MPI_COMM_WORLD, &nextBuffer.rowReq[i]);
 			}
+
+			printf("[%2d] Again7: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 
 
 			//Post a send to get the current B partition out of here
@@ -249,6 +255,9 @@ int main(int argc, char **argv)
 				}
 			}
 		} //End if not first go
+
+
+		printf("[%2d] Again10: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 /*		if (myRank == 0) {
 		printf("[%d] Matrix B (%d - %d):\n", myRank, col_offset, col_offset+partitionSize-1);
 		for (i = 0; i < matrix_size; i++) {
