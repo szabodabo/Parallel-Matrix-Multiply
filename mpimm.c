@@ -266,6 +266,7 @@ int main(int argc, char **argv)
 			printf("[%d] Computing row %d of Matrix C...\n", myRank, startIdx+i);
 			for (j = 0; j < partitionSize; j++) {
 				printf("[%d] Computing C[%d][%d]...\n", myRank, startIdx+i, j+col_offset);
+				printf("[%2d] Calling MM with B_COLS pointing to %p\n", myRank, B_COLS);
 				C_ROWS[i][j+col_offset] = matrix_mult( A_ROWS, B_COLS, matrix_size, i, j );
 				
 			}
