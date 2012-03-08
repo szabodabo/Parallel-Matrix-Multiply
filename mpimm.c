@@ -9,10 +9,20 @@ double CLOCK_RATE = 700000000.0; // change to 700000000.0 for Blue Gene/L
 int MY_RANK;
 
 double matrix_mult( double **A, double **B, int size, int cRow, int cCol ) {
+	printf("[%2d] Entering MM\n", MY_RANK);
+	printf("[%2d] A: %p\n", MY_RANK, A);
+	printf("[%2d] B: %p\n", MY_RANK, B);
+	printf("[%2d] B[0][0] = %5.5lf\n", MY_RANK, B[0][0]);
 	int idx;
 	double sum = 0;
 	for (idx = 0; idx < size; idx++) {
 		printf("[%2d][idx=%2d]: sum += A[%2d][%2d] * B[%2d][%2d]\n", MY_RANK, idx, cRow, idx, idx, cCol);
+		printf("[%2d]  A[%2d][%2d] = %5.5lf\n", MY_RANK, cRow, idx, A[cRow][idx]);
+
+		//------_SEGFAULT_---------------
+		printf("[%2d]  B[%2d][%2d] = %5.5lf\n", MY_RANK, idx, cCol, B[idx][cCol]);
+		printf("[%2d]  Result = %5.5lf\n", MY_RANK, A[cRow][idx] * B[idx][cCol]);
+
 		sum += A[cRow][idx] * B[idx][cCol];
 	}
 	return sum;
@@ -83,15 +93,19 @@ int main(int argc, char **argv)
 	MPI_Type_commit(&MPI_BRow);
 */
 
+	printf("[%d] Init A\n", myRank);
 	A_ROWS = (double **) calloc( partitionSize, sizeof(double *) );
 	for (i = 0; i < partitionSize; i++) {
 		A_ROWS[i] = (double *) calloc( matrix_size, sizeof(double *) );
 	}
 
+	printf("[%d] Init B\n", myRank);
 	B_COLS = (double **) calloc( matrix_size, sizeof(double *) );
 	for (i = 0; i < matrix_size; i++) {
 		B_COLS[i] = (double *) calloc( partitionSize, sizeof(double *) );
+		printf("B[%2d][0] = %5.5lf\n", i, B_COLS[i][0]);
 	}
+	printf("[%2d] Again: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 
 	C_ROWS = (double **) calloc( partitionSize, sizeof(double *) );
 	for (i = 0; i < partitionSize; i++) {
@@ -107,6 +121,8 @@ int main(int argc, char **argv)
 	    B_COLS[j][i] = genrand_res53(); //A[i][j] * A[i][j];
 	  }
 	}
+
+	printf("[%2d] Again2: B[0][0] = %5.5lf\n", myRank, B_COLS[0][0]);
 
 	//I will use my N/P full rows to compute a N/P * N/P segment of C
 	//By passing around columns of B, I can compute a row of C in
