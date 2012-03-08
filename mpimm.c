@@ -130,6 +130,7 @@ int main(int argc, char **argv)
 */
 
 	while (partitionsRemaining > 0) {
+		printf("[%2d] %d / %d partitions remaining.\n", myRank, partitionsRemaining, myRank);
 		if (partitionsRemaining != commSize) { //This isn't the first go	
 			//Get the next B offset and partition
 			startRecv = rdtsc();
