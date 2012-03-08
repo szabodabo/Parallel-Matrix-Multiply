@@ -6,11 +6,13 @@
 #include <mpi.h>
 
 double CLOCK_RATE = 700000000.0; // change to 700000000.0 for Blue Gene/L
+int MY_RANK;
 
 double matrix_mult( double **A, double **B, int size, int cRow, int cCol ) {
 	int idx;
 	double sum = 0;
 	for (idx = 0; idx < size; idx++) {
+		printf("[%2d][idx=%2d]: sum += A[%2d][%2d] * B[%2d][%2d]\n", MY_RANK, idx, cRow, idx, idx, cCol);
 		sum += A[cRow][idx] * B[idx][cCol];
 	}
 	return sum;
@@ -45,6 +47,7 @@ int main(int argc, char **argv)
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 	MPI_Comm_size(MPI_COMM_WORLD, &commSize);
+	MY_RANK = myRank;
 
 	//TODO: Rewrite this to use tabs, not spaces
 	rng_init_seeds[0] = myRank;
