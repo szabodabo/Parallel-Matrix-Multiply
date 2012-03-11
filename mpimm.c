@@ -5,21 +5,29 @@
 #include <mtrand.h>
 #include <mpi.h>
 
+#define MATRIX_SIZE 16
+#define SEND 0
+#define RECV 1
+
 double CLOCK_RATE = 700000000.0; // change to 700000000.0 for Blue Gene/L
 int MY_RANK;
 
-double matrix_mult( double **A, double **B, int size, int cRow, int cCol ) {
+int index_translate( int r, int c ) {
+	return (r * MATRIX_SIZE) + c;
+}
+
+double matrix_mult( double *A, double *B, int cRow, int cCol ) {
 	int idx;
 	double sum = 0;
-	for (idx = 0; idx < size; idx++) {
-		sum += A[cRow][idx] * B[idx][cCol];
+	for (idx = 0; idx < MATRIX_SIZE; idx++) {
+		sum += A[index_translate(cRow, idx)] * B[index_translate(idx, cCol)];
 	}
 	return sum;
 }
 
 int main(int argc, char **argv)
 {
-	unsigned int matrix_size=8192;
+	unsigned int matrix_size=MATRIX_SIZE;
 	unsigned long rng_init_seeds[6]={0x0, 0x123, 0x234, 0x345, 0x456, 0x789};
 	unsigned long rng_init_length=6;
 
@@ -28,7 +36,7 @@ int main(int argc, char **argv)
 	int partitionSize, startIdx;
 	int col_offset;
 	int partitionsRemaining;
-	int OFFSET_TAG = matrix_size+1;
+	int Bsource;
 	//TODO: Find out what these values really represent
 	double my_irecv_time = 0.0;
 	double my_isend_time = 0.0;
@@ -36,17 +44,16 @@ int main(int argc, char **argv)
 	int irecv_bytes = 0;
 	int isend_bytes = 0;
 	unsigned long long startSend, startRecv, startComp, finishSend, finishRecv, finishComp;
-	//int recvWait = 0;
-	//int sendWait = 0;
 
-	double **A_ROWS;
-	double **B_COLS;
-	double **C_ROWS;
+	double *A_ROWS;
+	double *B_COLS;
+	double *C_ROWS;
 
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 	MPI_Comm_size(MPI_COMM_WORLD, &commSize);
 	MY_RANK = myRank;
+	Bsource = myRank;
 
 	//TODO: Rewrite this to use tabs, not spaces
 	rng_init_seeds[0] = myRank;
@@ -57,53 +64,25 @@ int main(int argc, char **argv)
 	col_offset = partitionSize * myRank;
 	partitionsRemaining = commSize;
 
-	typedef struct {
-		MPI_Request offset;
-		MPI_Request *bufs; //matrix_size
-	} send_req_struct;
-	send_req_struct sendStatus;
-	sendStatus.bufs = calloc(matrix_size, sizeof(MPI_Request));
+	MPI_Request *requests = malloc(2 * sizeof(MPI_Request));
 
-	typedef struct {
-		int offset;
-		double **rows;
-		MPI_Request offsetReq;
-		MPI_Request *rowReq;
-	} buffer_struct;
-	buffer_struct nextBuffer;
-	nextBuffer.rowReq = calloc(matrix_size, sizeof(MPI_Request));
-	nextBuffer.rows = calloc(matrix_size, sizeof(double *));
-	for (i = 0; i < matrix_size; i++) {
-		nextBuffer.rows[i] = calloc(partitionSize, sizeof(double));
-	}
-/*
-	MPI_Datatype MPI_BRow;
-	MPI_Type_contiguous(partitionSize, MPI_DOUBLE, &MPI_BRow);
-	MPI_Type_commit(&MPI_BRow);
-*/
+	double *recvBuffer = malloc( matrix_size * partitionSize * sizeof(double) );
 
-	A_ROWS = (double **) calloc( partitionSize, sizeof(double *) );
-	for (i = 0; i < partitionSize; i++) {
-		A_ROWS[i] = (double *) calloc( matrix_size, sizeof(double) );
-	}
+	MPI_Datatype MPI_Partition;
+	MPI_Type_contiguous(partitionSize * matrix_size, MPI_DOUBLE, &MPI_Partition);
+	MPI_Type_commit(&MPI_Partition);
 
-	B_COLS = (double **) calloc( matrix_size, sizeof(double *) );
-	for (i = 0; i < matrix_size; i++) {
-		B_COLS[i] = (double *) calloc( partitionSize, sizeof(double) );
-	}
-
-	C_ROWS = (double **) calloc( partitionSize, sizeof(double *) );
-	for (i = 0; i < partitionSize; i++) {
-		C_ROWS[i] = (double *) calloc( matrix_size, sizeof(double) );
-	}
+	A_ROWS = (double *) malloc( matrix_size * partitionSize * sizeof(double) );
+	B_COLS = (double *) malloc( partitionSize * matrix_size * sizeof(double) );
+	C_ROWS = (double *) malloc( matrix_size * partitionSize * sizeof(double) );
 
 	printf("I am MPI Rank %d and I have rows %d - %d\n", 
 			myRank, startIdx, startIdx+partitionSize-1);
 
 	for( i = 0; i < partitionSize; i++ ) {
   	for( j = 0; j < matrix_size; j++ ) {
-    	A_ROWS[i][j] = genrand_res53(); // (double)i*j;
-	    B_COLS[j][i] = genrand_res53(); //A[i][j] * A[i][j];
+			A_ROWS[index_translate(i, j)] = genrand_res53();
+	    B_COLS[index_translate(j, i)] = genrand_res53();
 	  }
 	}
 
@@ -130,96 +109,50 @@ int main(int argc, char **argv)
 */
 
 	while (partitionsRemaining > 0) {
-		printf("[%2d] %d / %d partitions remaining.\n", myRank, partitionsRemaining, myRank);
+		printf("[%2d] %d / %d partitions remaining.\n", myRank, partitionsRemaining, commSize);
 		if (partitionsRemaining != commSize) { //This isn't the first go	
 			//Get the next B offset and partition
 			startRecv = rdtsc();
 			int sourceRank = myRank -1;
 			if (sourceRank == -1) { sourceRank = commSize-1; }
-			MPI_Irecv(&nextBuffer.offset, 1, MPI_INT, sourceRank, OFFSET_TAG, MPI_COMM_WORLD, &nextBuffer.offsetReq);
-			for (i = 0; i < matrix_size; i++) {
-				MPI_Irecv(&nextBuffer.rows[i][0], partitionSize, MPI_DOUBLE, sourceRank, i, MPI_COMM_WORLD, &nextBuffer.rowReq[i]);
-			}
+			MPI_Irecv(&recvBuffer, 1, MPI_Partition, sourceRank, MPI_ANY_TAG, MPI_COMM_WORLD, &requests[RECV]);
+			Bsource--;
+			if (Bsource == -1) { Bsource = commSize-1; }
+			col_offset = partitionSize * Bsource;
 
 			//Post a send to get the current B partition out of here
 			startSend = rdtsc();
 			int destRank = (myRank+1) % commSize;
-			MPI_Isend(&col_offset, 1, MPI_INT, destRank, OFFSET_TAG, MPI_COMM_WORLD, &sendStatus.offset);
-			for (i = 0; i < matrix_size; i++) {
-				MPI_Isend(&B_COLS[i][0], partitionSize, MPI_DOUBLE, destRank, i, MPI_COMM_WORLD, &sendStatus.bufs[i]);
+			MPI_Isend(&B_COLS, 1, MPI_Partition, destRank, 1, MPI_COMM_WORLD, &requests[SEND]);
+
+			int recvComplete = 0;
+			int sendComplete = 0;
+			int *completed_idxs = malloc(2 * sizeof(int));
+			int num_complete;
+			while (1) {
+				MPI_Testsome(2, requests, &num_complete, completed_idxs, MPI_STATUSES_IGNORE);
+				for (i = 0; i < num_complete; i++) {
+					if (completed_idxs[i] == SEND) {
+						sendComplete = 1;
+						finishSend = rdtsc();
+					} else if (completed_idxs[i] == RECV) {
+						recvComplete = 1;
+						finishRecv = rdtsc();
+					}
+				}
+				if (recvComplete == 1 && sendComplete == 1) {
+					break;
+				}
 			}
-
-			int sentOffset = 0;
-			int recvOffset = 0;
-			int sentData = 0;
-			int recvData = 0;
-			int recvJustCompleted = 0;
-			int sendJustCompleted = 0;
-
-			while (!sentOffset || !recvOffset || !sentData || !recvData) {
-				if (!sentOffset) {
-					MPI_Test(&sendStatus.offset, &sentOffset, MPI_STATUS_IGNORE);
-					if (sentOffset) {
-						sendJustCompleted = 1;
-					}
-				}
-				if (!sentData) {
-					MPI_Testall(matrix_size, sendStatus.bufs, &sentData, MPI_STATUSES_IGNORE);
-					if (sentData) {
-						sendJustCompleted = 1;
-					} else {
-		//				printf("[%d] Waiting for send...\n", myRank);
-//						sendWait++;
-					}
-				}
-				if (sendJustCompleted && sentOffset && sentData) {
-					finishSend = rdtsc();
-					isend_bytes += sizeof(int);
-					isend_bytes += (matrix_size * partitionSize * sizeof(double));
-					my_isend_time += (finishSend - startSend) / CLOCK_RATE;
-				}
-				if (!recvOffset) {
-					MPI_Test(&nextBuffer.offsetReq, &recvOffset, MPI_STATUS_IGNORE);
-					if (recvOffset) {
-						recvJustCompleted = 1;
-					}
-				}
-				if (!recvData) {
-					MPI_Testall(matrix_size, nextBuffer.rowReq, &recvData, MPI_STATUSES_IGNORE);
-					if (recvData) {
-						recvJustCompleted = 1;
-					}
-					else {
-	//					recvWait++;
-			//			printf("[%d] Waiting for recv...\n", myRank);
-					}
-				}
-				if (recvJustCompleted && recvOffset && recvData) {
-					finishRecv = rdtsc();
-					irecv_bytes += sizeof(int);
-					irecv_bytes += (matrix_size * partitionSize * sizeof(double));
-					my_irecv_time += (finishRecv - startRecv) / CLOCK_RATE;
-				}
-				sendJustCompleted = 0;
-				recvJustCompleted = 0;
-			}
-
-			//TODO: Time these waits
-			//Make sure we have the next B info before copying it from buffer
-//			MPI_Wait(&nextBuffer.offsetReq, MPI_STATUS_IGNORE);
-//			MPI_Waitall(matrix_size, nextBuffer.rowReq, MPI_STATUSES_IGNORE);
-
-			//Make sure our send has completed before we remove its data
-//			MPI_Wait(&sendStatus.offset, MPI_STATUS_IGNORE);
-//			MPI_Waitall(matrix_size, sendStatus.bufs, MPI_STATUSES_IGNORE);
-
-
+			irecv_bytes += (matrix_size * partitionSize * sizeof(double));
+			isend_bytes += (matrix_size * partitionSize * sizeof(double));
+			my_isend_time += (finishSend - startSend) / CLOCK_RATE;
+			my_irecv_time += (finishRecv - startRecv) / CLOCK_RATE;
 
 			//Move the next B from buffer to current
-			col_offset = nextBuffer.offset;
 			for (i = 0; i < matrix_size; i++) {
 				for (j = 0; j < partitionSize; j++) {
-					B_COLS[i][j] = nextBuffer.rows[i][j];
+					B_COLS[index_translate(i, j)] = recvBuffer[index_translate(i, j)];
 				}
 			}
 		} //End if not first go
@@ -238,7 +171,7 @@ int main(int argc, char **argv)
 		startComp = rdtsc();
 		for (i = 0; i < partitionSize; i++) {
 			for (j = 0; j < partitionSize; j++) {
-				C_ROWS[i][j+col_offset] = matrix_mult( A_ROWS, B_COLS, matrix_size, i, j );
+				C_ROWS[index_translate(i, j+col_offset)] = matrix_mult( A_ROWS, B_COLS, i, j );
 				
 			}
 		}
@@ -271,7 +204,7 @@ int main(int argc, char **argv)
 		printf("Rank 0's part of Matrix C (first %d rows):\n", partitionSize);
 		for (i = 0; i < partitionSize; i++) {
 			for (j = 0; j < matrix_size; j++) {
-				printf("%5.5lf ", C_ROWS[i][j]);
+				printf("%5.5lf ", C_ROWS[index_translate(i, j)]);
 			}
 			printf("\n");
 		}
